@@ -1,0 +1,91 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/newsreader/index.css';
+@import '@fontsource-variable/newsreader/wght-italic.css';
+@import '@fontsource-variable/plus-jakarta-sans/index.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../views/**/*.blade.php';
+
+@theme {
+    --font-serif: 'Newsreader Variable', Georgia, 'Times New Roman', serif;
+    --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+
+    --color-ocean: #0d3b4c;
+    --color-ocean-deep: #092935;
+    --color-turquoise: #1d7874;
+    --color-turquoise-bright: #49b6af;
+    --color-sand: #efe9dd;
+    --color-sand-mid: #e2d8c5;
+    --color-warm-white: #faf8f4;
+    --color-muted-green: #496a58;
+    --color-charcoal: #1e2426;
+    --color-charcoal-soft: #4e595c;
+}
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+        background-color: #faf8f4;
+        color: #1e2426;
+        transition: background-color 280ms ease, color 280ms ease;
+    }
+
+    .dark body {
+        background-color: #10171a;
+        color: #f0ece3;
+    }
+
+    h1, h2, h3, .font-editorial {
+        font-family: var(--font-serif);
+    }
+}
+
+/* Editorial viewport reveal */
+[data-reveal] {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 650ms cubic-bezier(0.22, 1, 0.36, 1),
+                transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+}
+
+[data-reveal].is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.coastal-hairline {
+    border-color: rgba(30, 36, 38, 0.13);
+}
+
+.dark .coastal-hairline {
+    border-color: rgba(240, 236, 227, 0.13);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+
+    body,
+    [data-reveal],
+    [data-hero-parallax],
+    * {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
+
+    [data-reveal] {
+        opacity: 1;
+        transform: none;
+    }
+}
