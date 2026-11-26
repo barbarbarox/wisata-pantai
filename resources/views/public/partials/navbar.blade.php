@@ -1,6 +1,6 @@
 @php
     $siteName = $settings['site_name'] ?? 'Pantai Selat Baru';
-    $siteLogo = !empty($settings['site_logo']) ? '/storage/' . ltrim($settings['site_logo'], '/') : null;
+    $siteLogo = \App\Models\SiteSetting::imageUrlFor($settings['site_logo'] ?? null);
     $navLinks = [
         ['label' => 'Home', 'href' => '#beranda'],
         ['label' => 'Tentang', 'href' => '#tentang'],

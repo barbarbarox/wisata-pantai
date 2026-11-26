@@ -233,6 +233,11 @@ Pengujian menyeluruh dilakukan dalam tiga lapis:
    - Verifikasi langsung record Eloquent pada MySQL di container `app` menghasilkan: `admins:1 settings:42 heroes:4 destinations:6 activities:4 umkm:4 galleries:7 contacts:3 social:2`.
    - *Catatan*: Upaya inspeksi menggunakan subagent Chrome DevTools tidak dapat terhubung ke browser Chrome host karena *remote debugging* Chrome tidak sedang aktif di host (`DevToolsActivePort` tidak ditemukan), sehingga verifikasi visual langsung dilakukan melalui pengujian HTTP, audit DOM/aset, dan pengujian PHPUnit.
 
+4. **Adaptasi Deployment Vercel & Pengujian Supabase PostgreSQL**:
+   - Ditambahkan dukungan runtime serverless Vercel melalui `api/index.php`, `vercel.json` (`vercel-php@0.7.4`, `outputDirectory: "public"`, path `/tmp`), `.vercelignore`, `$middleware->trustProxies(at: '*')` serta `$app->useStoragePath('/tmp/storage')` di `bootstrap/app.php`, pemaksaan skema HTTPS di `AppServiceProvider`, salinan aset statis `public/seed-media/*.webp` beserta resolusi fallback pada `SiteSetting::imageUrlFor()`, dukungan opsi `PDO::ATTR_EMULATE_PREPARES` pada `config/database.php`, serta integrasi opsional Supabase Storage pada `MediaService`.
+   - Pemeriksaan DNS menunjukkan host direct `db.<ref>.supabase.co` hanya memiliki record IPv6 (`ap-northeast-1`), sehingga pengujian migrasi dan seeder diarahkan ke **Supabase IPv4 Session Pooler** (`aws-1-ap-northeast-1.pooler.supabase.com:5432`) dengan hasil seluruh 12 migrasi dan seeder berhasil (`admins:1 settings:42 heroes:4 destinations:6 activities:4 umkm:4 galleries:7 contacts:3 social:2`).
+   - Pengujian ulang `php artisan test` menghasilkan `10/10` test case lolos (`60` assertions), dan simulasi request runtime `VERCEL=1` terhadap database Supabase PostgreSQL mengembalikan `HTTP 200` pada `/` dan `/admin/login`.
+
 ---
 
 ## 11. Git dan GitHub

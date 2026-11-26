@@ -24,7 +24,7 @@
     @if(!empty($settings['website_background_image']))
         <div
             class="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center opacity-[0.06] dark:opacity-[0.07]"
-            style="background-image: url('/storage/{{ ltrim($settings['website_background_image'], '/') }}');"
+            style="background-image: url('{{ \App\Models\SiteSetting::imageUrlFor($settings['website_background_image']) }}');"
             aria-hidden="true"
         ></div>
     @endif

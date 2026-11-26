@@ -21,7 +21,7 @@
     <div class="grid min-h-screen grid-cols-1 lg:grid-cols-12">
         <div class="relative hidden bg-ocean-deep lg:col-span-6 lg:flex lg:flex-col lg:justify-between lg:p-12">
             <img
-                src="/storage/media/heroes/hero-panoramic-coastline.webp"
+                src="{{ \App\Models\SiteSetting::imageUrlFor('media/heroes/hero-panoramic-coastline.webp') }}"
                 alt="Pantai Selat Baru, Bengkalis"
                 class="absolute inset-0 h-full w-full object-cover opacity-55"
                 onerror="this.style.display='none'"

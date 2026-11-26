@@ -10,8 +10,10 @@ use App\Models\SiteSetting;
 use App\Models\Umkm;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 class MediaService
@@ -23,8 +25,25 @@ class MediaService
         $cleanSubdir = trim(preg_replace('/[^a-zA-Z0-9_-]/', '', $subdirectory) ?: 'uploads', '/');
         $extension = strtolower($file->guessExtension() ?: $file->getClientOriginalExtension() ?: 'webp');
         $filename = Str::uuid()->toString().'.'.$extension;
-        $targetDir = self::ROOT_DIR.'/'.$cleanSubdir;
+        $objectPath = self::ROOT_DIR.'/'.$cleanSubdir.'/'.$filename;
 
+        if ($this->usesSupabaseStorage()) {
+            $storedUrl = $this->uploadToSupabase($file, $objectPath);
+
+            if ($previousPath && $previousPath !== $storedUrl) {
+                $this->deleteIfUnused($previousPath);
+            }
+
+            return $storedUrl;
+        }
+
+        if ($this->isReadOnlyServerless()) {
+            throw ValidationException::withMessages([
+                'image' => 'Filesystem Vercel bersifat read-only. Tambahkan SUPABASE_URL dan SUPABASE_SERVICE_KEY di Environment Variables Vercel untuk mengaktifkan upload gambar persisten.',
+            ]);
+        }
+
+        $targetDir = self::ROOT_DIR.'/'.$cleanSubdir;
         $storedPath = $file->storeAs($targetDir, $filename, 'public');
 
         if (! $storedPath) {
@@ -69,11 +88,15 @@ class MediaService
 
     public function deleteIfUnused(?string $path): bool
     {
-        if (! $this->isManagedPath($path)) {
+        if (! $path || $this->isPathReferenced($path)) {
             return false;
         }
 
-        if ($this->isPathReferenced($path)) {
+        if ($this->isSupabasePublicUrl($path) && $this->usesSupabaseStorage()) {
+            return $this->deleteFromSupabase($path);
+        }
+
+        if (! $this->isManagedLocalFile($path)) {
             return false;
         }
 
@@ -82,7 +105,15 @@ class MediaService
 
     public function forceDeleteManaged(?string $path): bool
     {
-        if (! $this->isManagedPath($path)) {
+        if (! $path) {
+            return false;
+        }
+
+        if ($this->isSupabasePublicUrl($path) && $this->usesSupabaseStorage()) {
+            return $this->deleteFromSupabase($path);
+        }
+
+        if (! $this->isManagedLocalFile($path)) {
             return false;
         }
 
@@ -95,10 +126,18 @@ class MediaService
             return false;
         }
 
+        if ($this->isSupabasePublicUrl($path)) {
+            return true;
+        }
+
         $normalized = ltrim($path, '/');
 
+        if (str_starts_with($normalized, 'seed-media/') && File::exists(public_path($normalized))) {
+            return true;
+        }
+
         return str_starts_with($normalized, self::ROOT_DIR.'/')
-            && Storage::disk('public')->exists($normalized);
+            && (Storage::disk('public')->exists($normalized) || File::exists(public_path('seed-media/'.basename($normalized))));
     }
 
     public function isPathReferenced(string $path): bool
@@ -118,34 +157,124 @@ class MediaService
      */
     public function listManagedFiles(): array
     {
-        $disk = Storage::disk('public');
-        if (! $disk->exists(self::ROOT_DIR)) {
-            return [];
-        }
-
         $references = $this->collectReferenceMap();
         $files = [];
+        $disk = Storage::disk('public');
 
-        foreach ($disk->allFiles(self::ROOT_DIR) as $file) {
-            $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-            if (! in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
-                continue;
+        if ($disk->exists(self::ROOT_DIR)) {
+            foreach ($disk->allFiles(self::ROOT_DIR) as $file) {
+                $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                if (! in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                    continue;
+                }
+
+                $files[] = [
+                    'path' => $file,
+                    'url' => SiteSetting::imageUrlFor($file),
+                    'name' => basename($file),
+                    'folder' => dirname($file),
+                    'size_kb' => round($disk->size($file) / 1024, 1),
+                    'last_modified' => $disk->lastModified($file),
+                    'used_in' => $references[$file] ?? [],
+                ];
             }
+        }
 
-            $files[] = [
-                'path' => $file,
-                'url' => '/storage/'.$file,
-                'name' => basename($file),
-                'folder' => dirname($file),
-                'size_kb' => round($disk->size($file) / 1024, 1),
-                'last_modified' => $disk->lastModified($file),
-                'used_in' => $references[$file] ?? [],
-            ];
+        if (empty($files) && File::isDirectory(public_path('seed-media'))) {
+            foreach (File::files(public_path('seed-media')) as $file) {
+                $name = $file->getFilename();
+                $folder = str_starts_with($name, 'hero-') ? 'heroes' : 'spots';
+                $logicalPath = self::ROOT_DIR.'/'.$folder.'/'.$name;
+                $files[] = [
+                    'path' => $logicalPath,
+                    'url' => '/seed-media/'.$name,
+                    'name' => $name,
+                    'folder' => 'seed-media',
+                    'size_kb' => round($file->getSize() / 1024, 1),
+                    'last_modified' => $file->getMTime(),
+                    'used_in' => $references[$logicalPath] ?? [],
+                ];
+            }
         }
 
         usort($files, fn (array $a, array $b) => $b['last_modified'] <=> $a['last_modified']);
 
         return $files;
+    }
+
+    private function isManagedLocalFile(?string $path): bool
+    {
+        if (! $path || str_contains($path, '..') || str_contains($path, "\0")) {
+            return false;
+        }
+
+        $normalized = ltrim($path, '/');
+
+        return str_starts_with($normalized, self::ROOT_DIR.'/')
+            && Storage::disk('public')->exists($normalized);
+    }
+
+    private function usesSupabaseStorage(): bool
+    {
+        return ! empty(config('services.supabase.url')) && ! empty(config('services.supabase.service_key'));
+    }
+
+    private function isReadOnlyServerless(): bool
+    {
+        return isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL']) || (bool) getenv('VERCEL');
+    }
+
+    private function isSupabasePublicUrl(string $path): bool
+    {
+        $baseUrl = rtrim((string) config('services.supabase.url'), '/');
+
+        return $baseUrl !== '' && str_starts_with($path, $baseUrl.'/storage/v1/object/public/');
+    }
+
+    private function uploadToSupabase(UploadedFile $file, string $objectPath): string
+    {
+        $baseUrl = rtrim((string) config('services.supabase.url'), '/');
+        $serviceKey = (string) config('services.supabase.service_key');
+        $bucket = (string) config('services.supabase.bucket', 'coastal-media');
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer '.$serviceKey,
+            'apikey' => $serviceKey,
+            'Content-Type' => $file->getMimeType() ?: 'image/webp',
+            'x-upsert' => 'true',
+        ])->withBody(
+            File::get($file->getRealPath()),
+            $file->getMimeType() ?: 'image/webp'
+        )->post("{$baseUrl}/storage/v1/object/{$bucket}/{$objectPath}");
+
+        if ($response->failed()) {
+            throw ValidationException::withMessages([
+                'image' => 'Gagal mengunggah gambar ke Supabase Storage: '.$response->status(),
+            ]);
+        }
+
+        return "{$baseUrl}/storage/v1/object/public/{$bucket}/{$objectPath}";
+    }
+
+    private function deleteFromSupabase(string $publicUrl): bool
+    {
+        $baseUrl = rtrim((string) config('services.supabase.url'), '/');
+        $serviceKey = (string) config('services.supabase.service_key');
+        $bucket = (string) config('services.supabase.bucket', 'coastal-media');
+        $prefix = "{$baseUrl}/storage/v1/object/public/{$bucket}/";
+
+        if (! str_starts_with($publicUrl, $prefix)) {
+            return false;
+        }
+
+        $objectPath = substr($publicUrl, strlen($prefix));
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer '.$serviceKey,
+            'apikey' => $serviceKey,
+        ])->delete("{$baseUrl}/storage/v1/object/{$bucket}/{$objectPath}");
+
+        return $response->successful();
     }
 
     /**

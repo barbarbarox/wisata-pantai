@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\File;
 
 class SiteSetting extends Model
 {
@@ -27,6 +28,21 @@ class SiteSetting extends Model
             return null;
         }
 
-        return '/storage/'.ltrim($path, '/');
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        $normalized = ltrim($path, '/');
+
+        if (File::exists(public_path('storage/'.$normalized))) {
+            return '/storage/'.$normalized;
+        }
+
+        $basename = basename($normalized);
+        if (File::exists(public_path('seed-media/'.$basename))) {
+            return '/seed-media/'.$basename;
+        }
+
+        return '/storage/'.$normalized;
     }
 }

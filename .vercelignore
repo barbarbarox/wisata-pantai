@@ -1,0 +1,16 @@
+/vendor
+/node_modules
+.env
+.env.*
+!.env.example
+docker
+Dockerfile
+docker-compose.yml
+tests
+storage/logs/*
+storage/app/public/*
+storage/app/private/*
+database/database.sqlite
+laporan-pembuatan.md
+docs
+

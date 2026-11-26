@@ -1,6 +1,6 @@
 @php
-    $aboutPrimary = !empty($settings['about_image']) ? '/storage/' . ltrim($settings['about_image'], '/') : null;
-    $aboutSecondary = !empty($settings['about_secondary_image']) ? '/storage/' . ltrim($settings['about_secondary_image'], '/') : null;
+    $aboutPrimary = \App\Models\SiteSetting::imageUrlFor($settings['about_image'] ?? null);
+    $aboutSecondary = \App\Models\SiteSetting::imageUrlFor($settings['about_secondary_image'] ?? null);
     $paragraphs = array_filter(array_map('trim', preg_split("/\r\n|\n|\r/", $settings['about_description'] ?? '') ?: []));
 @endphp
 

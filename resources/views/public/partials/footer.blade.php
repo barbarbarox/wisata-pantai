@@ -1,6 +1,6 @@
 @php
     $siteName = $settings['site_name'] ?? 'Pantai Selat Baru';
-    $footerBg = !empty($settings['footer_background_image']) ? '/storage/' . ltrim($settings['footer_background_image'], '/') : null;
+    $footerBg = \App\Models\SiteSetting::imageUrlFor($settings['footer_background_image'] ?? null);
 @endphp
 
 <footer class="relative overflow-hidden border-t border-white/10 bg-ocean-deep text-warm-white">

@@ -1,5 +1,5 @@
 @php
-    $bannerImg = !empty($settings['promo_banner_image']) ? '/storage/' . ltrim($settings['promo_banner_image'], '/') : null;
+    $bannerImg = \App\Models\SiteSetting::imageUrlFor($settings['promo_banner_image'] ?? null);
     $bannerQuote = $settings['promo_banner_quote'] ?? '';
 @endphp
 

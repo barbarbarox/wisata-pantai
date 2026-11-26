@@ -192,4 +192,19 @@ class PantaiSelatBaruTest extends TestCase
 
         $this->assertTrue(Gallery::where('title', 'Senja Uji')->exists());
     }
+
+    public function test_image_url_resolves_to_seed_media_fallback_and_https_urls(): void
+    {
+        $this->assertSame(
+            'https://example.supabase.co/storage/v1/object/public/coastal-media/test.webp',
+            \App\Models\SiteSetting::imageUrlFor('https://example.supabase.co/storage/v1/object/public/coastal-media/test.webp')
+        );
+
+        $resolved = \App\Models\SiteSetting::imageUrlFor('media/heroes/hero-panoramic-coastline.webp');
+        $this->assertContains($resolved, [
+            '/storage/media/heroes/hero-panoramic-coastline.webp',
+            '/seed-media/hero-panoramic-coastline.webp',
+        ]);
+    }
 }
+

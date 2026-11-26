@@ -16,7 +16,7 @@
 ])
 
 @php
-    $previewUrl = $currentPath ? '/storage/' . ltrim($currentPath, '/') : '';
+    $previewUrl = \App\Models\SiteSetting::imageUrlFor($currentPath) ?? '';
 @endphp
 
 <div id="{{ $id }}" data-image-field class="space-y-4 border coastal-hairline bg-[#f8f5ef] p-5 dark:bg-[#162126]">

@@ -279,4 +279,38 @@ Untuk pengembangan fitur baru atau pengujian:
 
 - **Kode Aplikasi**: Dibangun menggunakan kerangka kerja [Laravel](https://laravel.com) (lisensi MIT) dan ikon dari [Lucide](https://lucide.dev) (lisensi ISC).
 - **Peta Lokasi**: Menggunakan embed peta interaktif dari [OpenStreetMap](https://www.openstreetmap.org) (kontributor OpenStreetMap, ODbL).
-- **Aset Fotografi Awal**: 7 foto pesisir Pantai Selat Baru pada `resources/seed-media/` dihasilkan khusus menggunakan generator gambar AI selama tahap pengembangan. Daftar 15 aset visual lanjutan beserta prompt individualnya tersedia di [docs/aset-visual-pending.md](file:///home/abarox/Desktop/tes/docs/aset-visual-pending.md) untuk digenerate atau diunggah melalui Admin CMS oleh pengelola.
+- **Aset Fotografi Awal**: 7 foto pesisir Pantai Selat Baru pada `resources/seed-media/` (dan salinan CDN statis pada `public/seed-media/`) dihasilkan khusus menggunakan generator gambar AI selama tahap pengembangan. Daftar 15 aset visual lanjutan beserta prompt individualnya tersedia di [docs/aset-visual-pending.md](file:///home/abarox/Desktop/tes/docs/aset-visual-pending.md) untuk digenerate atau diunggah melalui Admin CMS oleh pengelola.
+
+---
+
+## 15. Deployment ke Vercel & Supabase PostgreSQL
+
+Selain Docker Compose, repository ini sudah dilengkapi konfigurasi untuk dijalankan secara serverless di **Vercel** menggunakan **Supabase PostgreSQL**:
+- [api/index.php](file:///home/abarox/Desktop/tes/api/index.php): Entrypoint serverless PHP yang menyiapkan direktori sementara `/tmp` dan meneruskan request ke `public/index.php`.
+- [vercel.json](file:///home/abarox/Desktop/tes/vercel.json): Mengatur runtime `vercel-php@0.7.4` (PHP 8.3), build Vite (`npm run build`), `outputDirectory: "public"`, routing aset `/build/` serta `/seed-media/`, dan path cache/view `/tmp`.
+- [.vercelignore](file:///home/abarox/Desktop/tes/.vercelignore): Mengecualikan `vendor/`, `node_modules/`, konfigurasi Docker, dan berkas lokal saat unggah deployment.
+
+### Pengaturan Wajib di Vercel Dashboard (`Settings -> Environment Variables`)
+1. **Aplikasi**:
+   - `APP_NAME`: `Pantai Selat Baru`
+   - `APP_KEY`: Hasil dari `php artisan key:generate --show` (format `base64:...`)
+   - `APP_URL`: URL domain deployment Vercel Anda (`https://<project>.vercel.app`)
+2. **Database Supabase (Gunakan Session Pooler IPv4)**:
+   Karena runtime Vercel hanya memakai jaringan IPv4 sedangkan host direct Supabase (`db.<ref>.supabase.co`) hanya menyediakan IPv6 pada paket standar, gunakan host **Session Pooler** dari dashboard Supabase (*Connect -> Session pooler*):
+   - `DB_CONNECTION`: `pgsql`
+   - `DB_HOST`: `aws-1-<region>.pooler.supabase.com` (sesuai yang tertera pada Supabase Dashboard Anda)
+   - `DB_PORT`: `5432`
+   - `DB_DATABASE`: `postgres`
+   - `DB_USERNAME`: `postgres.<project_ref>`
+   - `DB_PASSWORD`: Password database Supabase Anda
+   - `DB_SSLMODE`: `require`
+3. **Admin Seeder**:
+   - `ADMIN_USERNAME`: `abarox`
+   - `ADMIN_PASSWORD`: Password admin yang diinginkan
+4. **Opsional untuk Upload Gambar Baru di Vercel (Supabase Storage)**:
+   Karena filesystem Vercel bersifat *read-only*, 7 gambar bawaan dilayani otomatis dari `public/seed-media/`. Untuk mengaktifkan unggah gambar baru dari panel `/admin` saat berjalan di Vercel, buat bucket publik (misal `coastal-media`) di Supabase Storage lalu tambahkan:
+   - `SUPABASE_URL`: `https://<project_ref>.supabase.co`
+   - `SUPABASE_SERVICE_KEY`: Service Role Key Supabase Anda
+   - `SUPABASE_STORAGE_BUCKET`: `coastal-media`
+
+Setelah menambahkan Environment Variables di Vercel, lakukan **Redeploy** pada proyek Vercel Anda. Pastikan migrasi dan seeder telah dijalankan ke database Supabase (`php artisan migrate --seed --force`).

@@ -2,6 +2,8 @@
 
 namespace App\Models\Concerns;
 
+use App\Models\SiteSetting;
+
 trait HasManagedImage
 {
     protected function imageColumn(): string
@@ -12,17 +14,8 @@ trait HasManagedImage
     public function getImageUrlAttribute(): ?string
     {
         $column = $this->imageColumn();
-        $path = $this->{$column} ?? null;
 
-        if (! $path) {
-            return null;
-        }
-
-        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
-            return $path;
-        }
-
-        return '/storage/'.ltrim($path, '/');
+        return SiteSetting::imageUrlFor($this->{$column} ?? null);
     }
 
     public function getFocalPointStyleAttribute(): string
@@ -47,4 +40,3 @@ trait HasManagedImage
         ];
     }
 }
-
